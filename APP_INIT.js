@@ -31,7 +31,7 @@ var mySpectacles;
 $(document).ready(function(){
 
     //load our sample JSON file from disk
-    $.getJSON("./sampleModels/rst_basic_sample_project.json", function( data ){
+    $.getJSON("https://rawcdn.githack.com/msahli2/Shipnumerics/master/SHIP0.json", function( data ){
 
         //once loaded, initialize a Spectacles viewer by passing in the div to bind to, the json data, and a callback function
         //where we can enable application functionality in nice clean chunks
