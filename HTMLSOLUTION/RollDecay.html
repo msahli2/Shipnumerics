@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+	<title> A Prime on Roll Decay Simulation </title>
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>	
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/100/three.min.js"></script> 
+	<script src="https://gitcdn.link/repo/mrdoob/three.js/master/examples/js/loaders/OBJLoader.js"></script>
+	<script src="https://gitcdn.link/repo/msahli2/Shipnumerics/master/FOLDER_2020/OrbitControls.js"></script> 
+ 	<script src="https://gitcdn.link/repo/jbouny/ocean/master/water-material.js"></script> 	
+	<script src="https://gitcdn.link/repo/sloisel/numeric/master/src/numeric.js"></script>	
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.min.js"></script>	
+
+
+</head>
+
+<body>
+
+	
+	<h2> <i>A Prime on Roll Decay Simulation</i></h2>
+	<p>Actual Case Javascript Solution</p>
+				
+	<pre style="font-family:courier; font-size:11px;" >
+	ls=30m 
+	B=6m; 
+	GMt=2m; 
+	vol=180m3; 
+	ro=1.025; 
+	g=9.81;
+	
+	Damped Roll Equation Ixx.Φ'' + B44.Φ' + C44.Φ =0 
+	Φ,Φ',Φ'' respectively Angle,velocity and acceleration
+	var Ixx =0.2*ro*vol*Math.pow(B,2) ;
+	var C44=ro*g*vol*GMt;
+	var B44=2*0.1*Math.sqrt(Ixx*C44);
+	
+	Resolution with Runge-Kutta/Dormand-Prince Solver
+	ϕ0=25; Φ0'=0; tmax=50;
+	numeric.dopri(0, tmax, [Φ0,Φ0'], RollFunction) 
+	
+	function RollFunction(t, arrϕ) {
+		var M = 0; // free roll
+		var ϕdotdot = (M - B44 * arrϕ[1] - C44 * arrϕ[0]) / Ixx;
+		return [arrϕ[1], ϕdotdot];
+	};	
+	Animate Function Add
+	var time = clock.getElapsedTime();
+	if (time - time0 !== 0) 
+	{	// solve ODE for the time step
+		Roll0 = numeric.dopri(time0,time,Roll0,RollFunction).at(time);
+		Geo.rotation.set(Roll0[0]*3.14/180,0,0,"YZX"); 
+		time0 = time;
+	}</pre> 
+			 
+			
+	<div id="x_motion" style="width:550px;height:180px; font-family:arial; font-weight:bold; font-size:12px; "></div>
+	
+	<br>
+	<button ID='Roll' onclick='location.reload(); ' style='background-color:black; border-radius:4px; border:none; color:white; width:100px; height:18px;font-family:calibri; font-size:11px; font-weight=bold'>Roll Motion</button> 
+	<br><br>
+	<div id="3d"  style="position:absolute; border-radius:6px; border:1px solid gray; width:580px; height:230px; ">	</div>
+
+
+	
+	
+	<script>
+	
+	var renderer, container, scene, camera, controls;
+	var water = new THREE.Object3D;
+	var Geo = new THREE.Object3D();
+	var ocean0 = new THREE.Object3D;
+	
+		"use strict";
+
+		var m = 30; // kg
+		var k = 20; // N/m
+		var c = 2.9; // (N*s)/m
+
+		// arrϕ = [ϕdot, ϕdotdot]
+		function RollFunction(t, arrϕ) {
+		    var ls=30, B=6, GMt=2, vol=180, Tr =2, ro=1.025, g=9.81;
+			//var Ixx= g*ro*vol*GMt*(Tr*Tr)/4*(Math.PI*Math.PI);
+			var Ixx =0.2*ro*vol*Math.pow(B,2) ;// 1.20*Math.pow(0.4*B,2)*ro*vol ;//Ixx = Ixxp;
+			var C44=ro*g*vol*GMt;
+			var B44=2*0.1*Math.sqrt(Ixx*C44);
+			
+			m=Ixx;	c=B44;	k=C44; 
+			/**/
+			var F = 0; // N
+			var ϕdotdot = (F - c * arrϕ[1] - k * arrϕ[0]) / m;
+			return [arrϕ[1], ϕdotdot];
+		};		
+
+        //INITIAL STATE -------------------------------------------------------------------
+		var tmax = 50; // sec
+		var ϕ0=25;
+		
+		var sol_free = numeric.dopri(0, tmax, [ϕ0, 0], RollFunction);
+		var x_motion = numeric.rep([sol_free.x.length, 2], 0);
+
+		for (var i = 0; i < sol_free.x.length; i++) {
+			x_motion[i][0] = sol_free.x[i];
+			x_motion[i][1] = sol_free.y[i][0];
+		}
+		
+		//GRAPH PLOTTING
+		var d1_points = {show:false, radius:1, fillColor:"blue"};	
+		var dataplot = [
+			{color:"blue", points:{show:true},shadow:{show:false}, points:d1_points, data:x_motion, label:"Roll"}// GZmax				   
+		];			
+		$.plot("#x_motion", dataplot, {
+			xaxis: {tickFormatter: function(val, axis) {return val < axis.max ? val.toFixed(2) : "time (s)";}},
+			yaxis: {tickFormatter: function(val, axis) {return val < axis.max ? val.toFixed(2) : "Amplitude (deg)";	}},
+			
+			grid: {
+			backgroundColor: { colors: ["white", "white"] },//backgroundColor: { colors: ["#4ca8fe", "#2887de"] },
+			gridLineColor: "red",
+			borderColor: "gray",
+			borderWidth: 1,
+			margin:-1,
+			hoverable: true }									   
+		});
+
+
+		
+		(function() {
+			renderer = new THREE.WebGLRenderer({
+				antialias: true
+			});
+			renderer.setPixelRatio(window.devicePixelRatio);
+			renderer.setClearColor(0xA9CCE3, 1);
+			
+			// get the div that will hold the renderer
+			container = document.getElementById('3d');
+			// add the renderer to the div
+			container.appendChild(renderer.domElement);
+		
+			scene = new THREE.Scene();
+
+			//Camera and controls:
+			camera = new THREE.PerspectiveCamera(50);
+			camera.up.set(0, 0, 1);
+			camera.position.set(10, -6, 3);
+			scene.add(camera);
+			controls = new THREE.OrbitControls(camera, renderer.domElement);
+			
+		    //update renderer and scene in container
+			renderer.setSize(container.clientWidth, container.clientHeight);
+			camera.aspect = container.clientWidth / container.clientHeight;
+			camera.updateProjectionMatrix();			
+
+			//Add lights:
+			scene.add(new THREE.AmbientLight(0xffffff, 1));
+			var DirectionalLight = new THREE.DirectionalLight(0xffffff, 1);
+			DirectionalLight.position.set(1, 1, -20);
+			scene.add(DirectionalLight)
+			 
+										
+
+	    //Ship*************************************************************************************************************
+		var scl=0.7;
+		var loader = new THREE.OBJLoader();
+		loader.load('https://cdn.rawgit.com/msahli2/Shipnumerics/bd9ef662/New%20folder/SHIP1.obj', function(obj) { 				//------------------------------------------------ 
+		// apply custom material for all children
+		var legoMat = new THREE.MeshLambertMaterial({ color: 0x9a7d0a  });   // 008800  9a7d0a     2874a6 
+		obj.traverse( function (child) { if (child instanceof THREE.Mesh)  child.material = legoMat; });  // child.material.needsUpdate = true;     
+		// place the object in the certain position, rotate, scale and add to the scene   
+		obj.position.set(-20,0,-2) 
+		Geo.add(obj);
+		Geo.scale.set(scl,scl,scl); 
+		scene.add(Geo);
+		});	
+		
+
+        //Ocean*************************************************************************************************************
+		//var s = scale; //SHIPVIEW.scale ;	
+	    var planeMaterial = new THREE.MeshBasicMaterial({color:0x0008f9 ,  wireframe:  true});  // 0x10BFBF  0x0008f9  0x10BFBF
+        var waterNormals = new THREE.TextureLoader().load( 'https://rawcdn.githack.com/msahli2/Shipnumerics/master/FOLDER_2020/waternormals.jpg' );  //wave4 wave3 wave2   wave1  waterdudv  water
+        waterNormals.wrapS = waterNormals.wrapT = THREE.RepeatWrapping;
+        water = new THREE.Water( renderer, camera, scene, {
+
+            waterNormals: waterNormals,
+			normalSampler:    null ,
+			mirrorSampler:    null ,
+			alpha:            1.0 ,
+			time:             0.0 ,
+			distortionScale:  20.0 ,
+			noiseScale:       1.0 ,
+			textureMatrix :   new THREE.Matrix4() ,
+			sunColor:         new THREE.Color( 0x7F7F7F ) ,
+			sunDirection:     new THREE.Vector3( 0.70707, 0.70707, 0 ) ,
+			eye:              new THREE.Vector3() ,
+			waterColor:       new THREE.Color( 0x555555 ) 
+		 
+        } );
+	
+		var waterGeometry = new THREE.PlaneGeometry(2000,2000,100,50 );
+		Ocean0 = new THREE.Mesh( waterGeometry,  water.material  );		//water.receiveShadow = false;
+  		Ocean0.add( water ); 
+			
+		//water.castShadow = true;
+		//water.receiveShadow = true;
+        //Ocean0 = Ocean3 ;
+		scene.add( Ocean0 );
+		})();
+		
+		var wavePeriod=15;
+		var waveLength= 200;
+		var waveAmplitude=0.2;
+		var omega = 2*Math.PI/wavePeriod; //angular frequency of waves	
+		var w0 = Math.abs(encounter_frequency).toFixed(2);    
+		var ts0 = 0;
+		var dts =1.5;
+
+		var encounter_frequency = omega;
+		
+		//Ocean Simulation 
+        function SIMULATION2(t) {
+
+			Ocean0.geometry.verticesNeedUpdate = true; 	
+			var center = new THREE.Vector2(1000,10); 
+			var vLength = Ocean0.geometry.vertices.length;				
+			for (var i = 0; i < vLength; i++) {
+				var v = Ocean0.geometry.vertices[i];					
+				var dist = new THREE.Vector2(v.x, v.y).sub(center);
+				var NUMBER_K = 2*Math.PI / waveLength ;
+				var Frequency = 2*Math.PI / wavePeriod ;    
+				v.z = waveAmplitude *  Math.cos(NUMBER_K * dist.length() - Frequency * t ) ; 
+			}
+        }			
+		
+								
+		function animate() {
+			var time = clock.getElapsedTime();
+ 			if (time - time0 !== 0) 
+			{	// solve ODE for the time step
+				Roll0 = numeric.dopri(time0, time, Roll0, RollFunction).at(time);
+				Geo.rotation.set(Roll0[0]*3.14/180,0,0,"YZX"); //dopri loop
+				time0 = time;
+			}
+
+			SIMULATION2(time); 
+			
+			requestAnimationFrame(animate);
+			renderer.render(scene, camera);
+
+            water.material.uniforms.time.value += 1.0 /100; 
+			water.render(scene, camera );
+			controls.update();//controls.target = new THREE.Vector3(1, 0, 0);
+		}		
+		
+	
+		//Initial State
+		var time0 = 0;
+		var Roll0 = [ϕ0, 0];
+
+		var clock = new THREE.Clock();
+		animate();			   
+
+	</script>
+
+</body>
+
+</html>
